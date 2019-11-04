@@ -4,63 +4,30 @@ const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
 const helmet = require('helmet');
-const logger = require('./logger');
 const { NODE_ENV } = require('./config');
-const MOVIES = require('./store');
-
+const validateBearerToken = require('./validate-bearer-token');
+const errorHandler = require('./error-handler');
+const bookmarksRouter = require('./bookmarks/bookmarks-router');
 
 const app = express();
 
-const morganSetting = (NODE_ENV === 'production')
+app.use(morgan((NODE_ENV === 'production')
   ? 'tiny'
-  : 'common';
+  : 'common', { 
+  skip: () => NODE_ENV === 'test'}
+));
 
-app.use(morgan(morganSetting));
 app.use(helmet());
 app.use(cors());
+app.use(validateBearerToken);
 
-//authentication handler
-app.use(function validateBearer(req, res, next) {
-  const apiToken = process.env.API_TOKEN;
-  const authVal = req.get('Authorization') || '';
+app.use(bookmarksRouter);
 
-  if(!authVal || authVal.split(' ')[1] !== apiToken) {
-    logger.error(`Unauthorized request path: ${req.path}`);
-    res.status(400)
-      .json({error: 'Authorization token not found'});
-  }
-  //move to middleware
-  next();
-});
-
-//make test pass by adding basic endpoints to app.js
 app.get('/', (req, res) => {
-  res.send('Hello, Express!');
+  res.send('Hello World!');
 });
 
-app.get('/movie', (req, res) => {
-  let apps = MOVIES;
-  const {genre, country, avg_vote} = req.query;
+app.use(errorHandler);
 
-  if(genre) {
-    apps = apps.filter(app => app.genre.toLowerCase().includes(genre.toLowerCase()));
-  }
-
-  if(country) {
-    apps = apps.filter(app => app.avg_vote >= avg_vote);
-  }
-  res.json(apps);
-});
-
-//provide error messages
-app.use((error, req, res, next) => {
-  let response;
-  if (process.env.NODE_ENV === 'production') {
-    response = { error: { message: 'server error' } };
-  } else {
-    response = { error };
-  }
-  res.status(500).json(response);
-});
 
 module.exports = app;
